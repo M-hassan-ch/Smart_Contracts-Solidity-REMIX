@@ -2,6 +2,19 @@
 
 pragma solidity ^0.8.0;
 
+contract Receiver{
+    string public func_call;
+    receive() external payable{
+        func_call="receive function called";
+    }
+    fallback() external payable{
+        func_call="fallback function called";
+    }
+    function get() public view returns(uint){
+        return address(this).balance/1 ether;
+    }
+}
+
 contract Wallet{
 
     struct DepositeDetails{
@@ -39,13 +52,12 @@ contract Wallet{
             require(transactions[msg.sender].allowance>= msg.value/ 1 ether, "transfer Limit exceeded");
         }
         transactions[msg.sender].amount+=msg.value;
-        temp = msg.value;
     }
 
-    //temp
+    
     function transfer(address payable addressTo, uint amount) public {
         require(owner == msg.sender, "Not an owner. Request cancelled.........");
-        addressTo.transfer(amount * 1 ether);
-
+        (bool res, ) = addressTo.call{value: amount *(1 ether)}("");
+        require(res, "Transaction reverted");
     }
 }
