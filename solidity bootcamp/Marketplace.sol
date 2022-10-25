@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-
 import "@openzeppelin/contracts@4.7.3/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts@4.7.3/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts@4.7.3/access/Ownable.sol";
 
-contract Marketplace is ERC721, ERC721URIStorage, Ownable {
+contract Marketplace is ERC721, ERC721URIStorage, Ownable{
     
     struct MarketItem{
         bool forSale;
         uint actual_price;
         uint feeAmount;
+        address payable actualOwner;
     }
 
     uint public __tokenId;
@@ -31,36 +31,47 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable {
     function mintNft(string memory URI) public{
         _safeMint(msg.sender, __tokenId);
         _setTokenURI(__tokenId, URI);
+        // setApprovalForAll(address(this), true);
+        __tokenId++;
     }
 
     //user can mark his/her nft as available for sale or not
-    function sellNft(uint token_id, uint amount) public onlyOwner validTokenId(token_id){
-        require(amount==0, "Marketplace: Selling price is 0");
+    function sellNft(uint token_id, uint amount) public validTokenId(token_id){
+        require(amount>0, "Marketplace: Selling price is 0");
+        require(msg.sender == ownerOf(token_id), "Marketplace: Not an owner of nft");
+        address actualOwner = ownerOf(token_id);
+        
+        // giving marketplace permission to transfer token
+        approve(address(this), __tokenId-1);
         //marking a token as available for sale
-        tokenForSale[token_id].forSale =true;
+        tokenForSale[token_id].actualOwner = payable(actualOwner);
+        tokenForSale[token_id].forSale = true;
         tokenForSale[token_id].actual_price = amount;
-        tokenForSale[token_id].feeAmount = (_feePercentage/100)*amount;
+        tokenForSale[token_id].feeAmount = (_feePercentage * amount)/100;
     }
-
+    
     function buyNft(uint token_id, address addressTo) payable public validTokenId(token_id){
-        require(addressTo!= address(0), "Marketplace: Transfer to null address");
+        require(addressTo != address(0), "Marketplace: Transfer to null address");
+        require(msg.sender != ownerOf(token_id), "Marketplace: Can't buy your own nft");
+        require(addressTo != ownerOf(token_id), "Marketplace: Can't transfer nft to same address");
         require(tokenForSale[token_id].forSale, "Marketplace: Token is not for sale");
         require(msg.value == (tokenForSale[token_id].actual_price + tokenForSale[token_id].feeAmount) * 1 ether, "Marketplace: Invalid amount for buying a token");
-
-        address payable actualOwner = payable(ownerOf(token_id));
         
-        //transfering ownership
-        safeTransferFrom(actualOwner, msg.sender, token_id);
+        //getting actual owner of nft
+        address payable actualOwner = tokenForSale[token_id].actualOwner;
 
-        //tranfering sale amount
+        Marketplace _contract = Marketplace(address(this));
+        // transfering ownership
+        _contract.safeTransferFrom(actualOwner, msg.sender, token_id);
+        // tranfering sale amount
         actualOwner.transfer(tokenForSale[token_id].actual_price * 1 ether);
-        payable(owner()).transfer(tokenForSale[token_id].feeAmount * 1 ether);
-        
-        //updating market Items
-        tokenForSale[token_id] = MarketItem(false, 0,0);
+        payable(owner()).transfer(tokenForSale[token_id].feeAmount * 1 ether);//
+        // updating market Items
+        tokenForSale[token_id] = MarketItem(false, 0,0, payable(address(0)));
     }
 
-
+    //--- mising-- marking items not for sale --- redeem
+    //--- problems facing while using floating points
     function safeMint(address to, uint256 tokenId, string memory uri)
         public
         onlyOwner
@@ -70,7 +81,6 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable {
     }
 
     // The following functions are overrides required by Solidity.
-
     function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
         super._burn(tokenId);
     }
@@ -83,4 +93,8 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable {
     {
         return super.tokenURI(tokenId);
     }
+
+    // function test(uint amount, uint token_id) public view returns(uint){
+    //     return (tokenForSale[token_id].actual_price + (tokenForSale[token_id].feeAmount/ 1 ether));
+    // }
 }
