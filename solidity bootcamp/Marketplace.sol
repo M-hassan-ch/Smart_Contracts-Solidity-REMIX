@@ -23,7 +23,8 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable{
 
     //checks whether a token id is valid or not
     modifier validTokenId(uint token_id){
-        require(ownerOf(token_id)!=address(0), "Marketplace: Invalid Token ID");
+        require(_exists(token_id), "Marketplace: Invalid token Id");
+        require(ownerOf(token_id)!=address(0), "Marketplace: owner cannot be null address");
         _;
     }
 
@@ -42,7 +43,7 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable{
         address actualOwner = ownerOf(token_id);
         
         // giving marketplace permission to transfer token
-        approve(address(this), __tokenId-1);
+        approve(address(this), token_id);
         //marking a token as available for sale
         tokenForSale[token_id].actualOwner = payable(actualOwner);
         tokenForSale[token_id].forSale = true;
@@ -72,6 +73,7 @@ contract Marketplace is ERC721, ERC721URIStorage, Ownable{
 
     //--- mising-- marking items not for sale --- redeem
     //--- problems facing while using floating points
+    //    ----->  buying and selling should be in wei not in eth
     function safeMint(address to, uint256 tokenId, string memory uri)
         public
         onlyOwner
