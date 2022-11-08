@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "./ERC4907.sol";
+
 contract RentableNft is ERC4907{
      //restrict owner to transfer token that is on rent ,,,,,,marked as rent
     struct TokenRecord{
@@ -16,30 +17,49 @@ contract RentableNft is ERC4907{
     mapping(uint=>string) _uri;
     //mapping(tokenId=>TokenMarkedFoRent)
     mapping(uint => TokenRecord) tokenDetails;
+
     // -------------------------- Marked as rent --------------------------
+    
     //mapping(tokenOwner => total tokens marked as rent)
     mapping(address => uint) _markedTokenLength;
     //mapping(tokenOwner => (index => tokenId) )
     mapping(address => mapping(uint => uint)) _tokensForRent;
+
     // -------------------------- Actually on rent --------------------------
+    
     //mapping(tokenOwner => total tokens marked as rent)
     mapping(address => uint) _borrowedTokenLength;
     //mapping(tokenOwner => (index => tokenId) )
     mapping(address => mapping(uint => uint)) _tokensBorrowed;
+    
     constructor() ERC4907("test", "tkn"){
         _owner = msg.sender;
     }
+    
     //checks whether a token id is valid or not
     modifier validTokenId(uint token_id){
-        require(_exists(token_id), "Marketplace: Invalid token Id");
-        require(ownerOf(token_id)!=address(0), "Marketplace: owner cannot be null address");
+        require(_exists(token_id), "RentableNft: Invalid token Id");
+        require(ownerOf(token_id)!=address(0), "RentableNft: owner cannot be null address");
         _;
     }
+
     function mintNft(string memory uri) public{
         _mint(msg.sender, _tokenId);
         _uri[_tokenId] = uri;
         _tokenId++;
     }
+
+    function transferToken(uint token_id, address to) public validTokenId(token_id){
+        require(ownerOf(token_id) == msg.sender, "RentableNft: Caller is not an owner of NFT");
+        require(!tokenDetails[token_id].isRented, "RentableNft: Token is currently on rent");
+        
+        if (tokenDetails[token_id].owner!=address(0)){
+            tokenDetails[token_id].owner = address(0);
+        }
+        
+        safeTransferFrom(msg.sender, to, token_id);
+    }
+
     function markForRent(uint token_id, uint price ,uint interval) public{
         require(ownerOf(token_id) == msg.sender, "RentableNft: Not an owner of nft");
         require(tokenDetails[token_id].owner == address(0), "RentableNft: token already marked as rent");
@@ -51,6 +71,7 @@ contract RentableNft is ERC4907{
         _tokensForRent[msg.sender][_markedTokenLength[msg.sender]] = token_id;
         _markedTokenLength[msg.sender]++;
     }
+
     function borrowToken(uint token_id) public payable{
         require(tokenDetails[token_id].owner != address(0), "RentableNft: token is not for rent");
         require(!tokenDetails[token_id].isRented, "RentableNft: token already on rent");
@@ -63,6 +84,7 @@ contract RentableNft is ERC4907{
         // transferring amount to  token owner
         payable(tokenDetails[token_id].owner).transfer(msg.value);
     }
+
     function viewTokenMarkedAsRent() public view returns(uint[] memory){
         uint totalTokens = _markedTokenLength[msg.sender];
         uint[] memory markedTokens = new uint[](totalTokens);
@@ -72,6 +94,7 @@ contract RentableNft is ERC4907{
         }
         return markedTokens;
     }
+
     function viewBorrowedTokens() public view returns(uint[] memory){
         uint totalTokens = _borrowedTokenLength[msg.sender];
         uint[] memory borrowedTokens = new uint[](totalTokens);
@@ -81,15 +104,38 @@ contract RentableNft is ERC4907{
         }
         return borrowedTokens;
     }
+
     function validate() public returns(uint){
-        //return no. of removed token
+        
+        uint totalTokens = _borrowedTokenLength[msg.sender];
+        uint tokensExpired;
+        
+        for (uint i=0; i < totalTokens; i++)
+        {
+            uint tokenId = _tokensBorrowed[msg.sender][i];
+
+            tokenDetails[tokenId].owner = address(0);
+
+            if (userOf(tokenId) == address(0)){
+                if (i < totalTokens-1){
+                    _tokensBorrowed[msg.sender][i] = _tokensBorrowed[msg.sender][totalTokens-1];
+                }
+                _borrowedTokenLength[msg.sender]--;
+                tokensExpired++; 
+            }
+            
+        }
+        
+        return tokensExpired;
     }
+
     function addTokenToOnRent(uint token_id, address user) internal{
         //updating token to "actually on rent"
         tokenDetails[token_id].isRented = true;
         _tokensBorrowed[user][_borrowedTokenLength[user]] = token_id;
         _borrowedTokenLength[user]++;
     }
+
     function removeTokenMarkedAsRent(uint token_id) internal{
         //removing token from "marked as rent"
         address tokenOwner = tokenDetails[token_id].owner;
@@ -101,6 +147,8 @@ contract RentableNft is ERC4907{
                 break;
             }
         }
+
         _markedTokenLength[tokenOwner]--;
     }
+
 }
