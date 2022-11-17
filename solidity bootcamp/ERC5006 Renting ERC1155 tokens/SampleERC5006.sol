@@ -45,11 +45,15 @@ contract SampleERC5006 is ERC5006, Ownable {
     //  mapping(address => (tokenId => balance)) _lenderFrozenBalance
     mapping(address => mapping(uint => uint)) _lenderFrozenBalance;
     
+    // mapping(lender => tokenids[])
+    // mapping(address => uint[]) _lenderAvailableTokens;
+    
+    // resolve this issue
     using EnumerableSet for EnumerableSet.UintSet;
-    mapping(address => EnumerableSet.UintSet) _lendersMarkedtokenIds;  //lendersMarkedtokenIds
+    mapping(address => EnumerableSet.UintSet) _lenderAvailableTokens;  //lendersMarkedtokenIds
 
 // -------------------------- Actually on rent --------------------------
-  
+
 //  mapping(user => array containg record ids of borrowed token id)
     mapping(address => uint[]) _userBorrowedRecordIds;
 
@@ -90,7 +94,8 @@ contract SampleERC5006 is ERC5006, Ownable {
         //adding data....so that owner can see his marked onRent tokens
         
         //
-        _lendersMarkedtokenIds[msg.sender].add(token_id);
+        // _lenderAvailableTokens[msg.sender].add(token_id);
+        addToAvailableTokens(msg.sender, token_id);
         _lenderFrozenBalance[msg.sender][token_id]+=copies;
         //  giving this contract permission to transfer tokens
         setApprovalForAll(address(this), true);
@@ -176,8 +181,8 @@ contract SampleERC5006 is ERC5006, Ownable {
             if (_userBorrowedRecordIds[borrower][index]== recId)
             {
                 _self.deleteUserRecord(_tokenRecords[recId].recordId5006);
-                _userBorrowedRecordIds[msg.sender][index] = _userBorrowedRecordIds[msg.sender][_userBorrowedRecordIds[msg.sender].length - 1];
-                _userBorrowedRecordIds[msg.sender].pop();
+                _userBorrowedRecordIds[borrower][index] = _userBorrowedRecordIds[borrower][_userBorrowedRecordIds[borrower].length - 1];
+                _userBorrowedRecordIds[borrower].pop();
                 break;
             }
         }
@@ -186,30 +191,35 @@ contract SampleERC5006 is ERC5006, Ownable {
 
     function removeTokenRecord(uint recId) internal {
         // you can also keep the package instead of deleting it here 
+        _tokenRecords[recId].rentedTo = _tokenRecords[recId].lender = address(0);
         _tokenRecords[recId] = _tokenRecords[_recId - 1];
         _recId--;
     }
 
     function getInventory() public view returns(uint[] memory){
-        return _lendersMarkedtokenIds[msg.sender].values();
+        return _lenderAvailableTokens[msg.sender].values();
     }
     
     function validateLendedTokens() public returns(uint) {
 
-        uint[] memory lenderMarkedtokenIds = _lendersMarkedtokenIds[msg.sender].values();
+        uint[] memory lenderMarkedtokenIds = _lenderAvailableTokens[msg.sender].values();
         uint recordExpired;
 
         for (uint i=0; i<lenderMarkedtokenIds.length; i++){
-            // uint[] memory onRentRecordIds = getOnRentRecordIds(lenderMarkedtokenIds[i]);
-            uint[] memory onRentRecordIds = _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]];
-            for(uint j=0; j<onRentRecordIds.length; j++){
-                UserRecord memory record = userRecordOf(_tokenRecords[onRentRecordIds[j]].recordId5006);
+            // uint[] memory onRentRecordIds = _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]];
+            for(uint j=0; j<_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].length; j++){
+                UserRecord memory record = userRecordOf(_tokenRecords[_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j]].recordId5006);
                 if (record.owner == msg.sender && record.expiry < block.timestamp)
                 {
+
+                    removeBorrowedRecId(_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j], record.user);
+                    removeTokenRecord(_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j]);
+                    
                     _lenderFrozenBalance[record.owner][record.tokenId]-=record.amount;
-                    _lendersMarkedtokenIds[record.owner].remove(record.tokenId);
-                    removeBorrowedRecId(onRentRecordIds[j], record.user);
-                    removeTokenRecord(onRentRecordIds[j]);
+                    // _lenderAvailableTokens[record.owner].remove(record.tokenId);
+                    deleteFromAvailableTokens(record.owner, record.tokenId);
+                    _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j] = _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].length - 1];
+                    _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].pop();
                     recordExpired++;
                 }
             }
@@ -231,7 +241,7 @@ contract SampleERC5006 is ERC5006, Ownable {
     //         if (record.owner == msg.sender && record.expiry < block.timestamp)
     //         {
     //             _lenderFrozenBalance[record.owner][record.tokenId]-=record.amount; //new
-    //             _lendersMarkedtokenIds[record.owner].remove(record.tokenId);
+    //             _lenderAvailableTokens[record.owner].remove(record.tokenId);
     //             removeBorrowedRecId(i, _userBorrowedRecordIds[borrower][i]);
     //             removeTokenRecord(_userBorrowedRecordIds[borrower][i]); //new 
     //             // _totalTokensOnRent[record.owner]--;
@@ -240,6 +250,18 @@ contract SampleERC5006 is ERC5006, Ownable {
     //     }
     //     return recordExpired;
     // }
+
+    function addToAvailableTokens(address lender, uint token_id) internal {
+        if (!(_lenderFrozenBalance[lender][token_id]>0)){
+            _lenderAvailableTokens[lender].add(token_id);
+        }
+    }
+
+    function deleteFromAvailableTokens(address lender, uint token_id) internal{
+        if (_lenderFrozenBalance[lender][token_id] == 0){
+            _lenderAvailableTokens[lender].remove(token_id);
+        }
+    }
     
     function burn(
         address from,
