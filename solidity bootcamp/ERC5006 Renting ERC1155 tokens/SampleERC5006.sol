@@ -98,27 +98,35 @@ contract SampleERC5006 is ERC5006, Ownable {
         
         _recId++;
     }
-    
+
+//  borrower call this function to borrow a record(package)
     function borrowToken(address lender, uint token_id, uint copies) payable public{
         require(_lenderFrozenBalance[lender][token_id]>= copies, "Sample5006: Lender did not marked enough token for rent");
         require(msg.sender != lender, "Sample5006: Can't buy your own token");
-        
+
+        // getting recordIds associated with the desired tokenId that was marked for rent by the lender
         uint[] memory recordIds = _lenderMarkedRecordIds[lender][token_id];
         bool recordFound;
+
         for (uint i=0; i<recordIds.length; i++){
             if (_tokenRecords[recordIds[i]].tokenId == token_id && _tokenRecords[recordIds[i]].lender == lender && _tokenRecords[recordIds[i]].copies == copies  && _tokenRecords[recordIds[i]].price == msg.value){ //&& _tokenRecords[recordIds[i]].startTime >= block.timestamp
                 
                 recordFound = true;
                 // rent the token
+                // createUserRecord() will return another the recordId that was given by ERC5006......This recordId(5006) will help in deleting and fetching the record present in ERC5006 after renting a speciffic token
                 uint userRecordId = _self.createUserRecord(lender, msg.sender, token_id, uint64(copies), uint64(_tokenRecords[recordIds[i]].endTime));
-                // save the data into the borrower's side
-                //_userBorrowedRecordIds[msg.sender].push(userRecordId); old
+                
+                // save the data into the borrower's side (adding record id in the array that contains recordsIds of borrowed token)
                 _userBorrowedRecordIds[msg.sender].push(recordIds[i]);
-                //remove record from the lender's marked record list
+                
+                //remove recordId from the lender's marked record list (because it is now "actually on rent")
                 removeMarkedRecId(i, _tokenRecords[recordIds[i]]);
+                
+                //Updating general record detail of the lended token
                 _tokenRecords[recordIds[i]].rentedTo = msg.sender;
                 _tokenRecords[recordIds[i]].recordId5006 = userRecordId;
-                // _totalTokensOnRent[_tokenRecords[recordIds[i]].lender]++;
+                
+                //adding recordId in the lender's actually on rent record list 
                 _lenderOnRentRecordIds[lender][token_id].push(recordIds[i]);
                 break;
             } 
@@ -128,60 +136,83 @@ contract SampleERC5006 is ERC5006, Ownable {
     
     // -------------------------- View (Utility) Functions --------------------------
     
+    // lender call this function to view his total copies of token that is made available for rent
     function getLenderFrozenBalance(uint token_id) public view returns(uint){
         return _lenderFrozenBalance[msg.sender][token_id];
     }
-    function getTokenRecord(uint recId) public view returns(TokenRecord memory){
-        require(recId < _recId, "SampleERC5006: Record dont exists");
-        return _tokenRecords[recId];
-    }
+
+    // lender call this function to view his distinct tokenIds that is made available for rent
     function getLenderAvailableTokens() public view returns(uint[] memory){
         return _lenderAvailableTokens[msg.sender].values();
     }
+
+    //Borrower call this function to view the recordIds he borrowed
     function getBorrowedRecordId() public view returns(uint[] memory){
         return _userBorrowedRecordIds[msg.sender];
     }
+
+    // lender call this function to view his recordIds of a speciffic token that is marked as rent
     function getMarkedRecordIds(uint token_id) public view returns(uint[] memory){
         
-        uint[] memory markedRecordIds= new uint[](_lenderMarkedRecordIds[msg.sender][token_id].length);
-        uint index = 0;
+        return _lenderMarkedRecordIds[msg.sender][token_id];
+        // uint[] memory markedRecordIds= new uint[](_lenderMarkedRecordIds[msg.sender][token_id].length);
+        // uint index = 0;
         
-        for (uint i=0; i < _lenderMarkedRecordIds[msg.sender][token_id].length; i++){
-            if (_tokenRecords[_lenderMarkedRecordIds[msg.sender][token_id][i]].rentedTo == address(0)){
-                 markedRecordIds[index] = _lenderMarkedRecordIds[msg.sender][token_id][i];
-                 index++;
-            }
-        }
-        return markedRecordIds;
+        // for (uint i=0; i < _lenderMarkedRecordIds[msg.sender][token_id].length; i++){
+        //     if (_tokenRecords[_lenderMarkedRecordIds[msg.sender][token_id][i]].rentedTo == address(0)){
+        //          markedRecordIds[index] = _lenderMarkedRecordIds[msg.sender][token_id][i];
+        //          index++;
+        //     }
+        // }
+        // return markedRecordIds;
     }
+
+    // lender call this function to view his recordIds of a speciffic token that is actually on rent
     function getOnRentRecordIds(uint token_id) public view returns(uint[] memory){
-        uint[] memory onRentRecordIds= new uint[](_lenderOnRentRecordIds[msg.sender][token_id].length);
-        uint index = 0;
+        return _lenderOnRentRecordIds[msg.sender][token_id];
+        // uint[] memory onRentRecordIds= new uint[](_lenderOnRentRecordIds[msg.sender][token_id].length);
+        // uint index = 0;
         
-        for (uint i=0; i < _lenderOnRentRecordIds[msg.sender][token_id].length; i++){
-            if (_tokenRecords[_lenderOnRentRecordIds[msg.sender][token_id][i]].rentedTo != address(0)){
-                 onRentRecordIds[index] = _lenderOnRentRecordIds[msg.sender][token_id][i];
-                 index++;
-            }
-        }
-        return onRentRecordIds;
+        // for (uint i=0; i < _lenderOnRentRecordIds[msg.sender][token_id].length; i++){
+        //     if (_tokenRecords[_lenderOnRentRecordIds[msg.sender][token_id][i]].rentedTo != address(0)){
+        //          onRentRecordIds[index] = _lenderOnRentRecordIds[msg.sender][token_id][i];
+        //          index++;
+        //     }
+        // }
+        // return onRentRecordIds;
     }
     
+    // lender call this function to validate his tokens (revert the ownership)
     function validateLendedTokens() public returns(uint) {
+        // getting distinct tokenIDs, the lender marked as available for rent
         uint[] memory lenderMarkedtokenIds = _lenderAvailableTokens[msg.sender].values();
         uint recordExpired;
+
+        // Iterating  on all available tokenIds
         for (uint i=0; i<lenderMarkedtokenIds.length; i++){
-            // uint[] memory onRentRecordIds = _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]];
+            
+            //Iterating on all recordIds associated with a single tokenId
             for(uint j=0; j<_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].length; j++){
+                
+                // getting ERC5006 UserRecord from every TokenRecord
                 UserRecord memory record = userRecordOf(_tokenRecords[_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j]].recordId5006);
+                
+                // check if the record expires
                 if (record.owner == msg.sender && record.expiry < block.timestamp)
                 {
+
+                    // removing recordId from the borrowed recordIds list of Borrower
                     removeBorrowedRecId(_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j], record.user);
+                    // deleting General tokenRecord details
                     removeTokenRecord(_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j]);
                     
+                    // releasig lender's frozen balance
                     _lenderFrozenBalance[record.owner][record.tokenId]-=record.amount;
-                    // _lenderAvailableTokens[record.owner].remove(record.tokenId);
+                    
+                    // removing tokenId from the lenders available tokenIds list
                     deleteFromAvailableTokens(record.owner, record.tokenId);
+                    
+                    // removing expired recordId from lender's end (Lender OnRent recordIds list)
                     _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][j] = _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]][_lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].length - 1];
                     _lenderOnRentRecordIds[msg.sender][lenderMarkedtokenIds[i]].pop();
                     recordExpired++;
@@ -190,17 +221,25 @@ contract SampleERC5006 is ERC5006, Ownable {
         }
         return recordExpired;
     }
+    
     // -------------------------- Internal Functions --------------------------
+    
+//  removing recordId from lender's end (Lender Marked for rent recordIds list)
     function removeMarkedRecId(uint index, TokenRecord memory record) internal{
         _lenderMarkedRecordIds[record.lender][record.tokenId][index] = _lenderMarkedRecordIds[record.lender][record.tokenId][_lenderMarkedRecordIds[record.lender][record.tokenId].length - 1];
         _lenderMarkedRecordIds[record.lender][record.tokenId].pop();
     }
+
+    // this function is used to delete a borrowed recordId from borrower's end
     function removeBorrowedRecId(uint recId, address borrower) internal{
         
         for (uint index=0; index< _userBorrowedRecordIds[borrower].length; index++){
+            // if the recId matched
             if (_userBorrowedRecordIds[borrower][index] == recId)
             {
+                // Calling ERC5006 function to revert the ownership of expired record
                 _self.deleteUserRecord(_tokenRecords[recId].recordId5006);
+                // removing record Id from the borrower's array
                 _userBorrowedRecordIds[borrower][index] = _userBorrowedRecordIds[borrower][_userBorrowedRecordIds[borrower].length - 1];
                 _userBorrowedRecordIds[borrower].pop();
                 break;
@@ -208,6 +247,8 @@ contract SampleERC5006 is ERC5006, Ownable {
         }
         
     }
+
+    // it deletes a general tokenRecord
     function removeTokenRecord(uint recId) internal {
         /// i have some queries in this section
         // _tokenRecords[recId] = _tokenRecords[_recId - 1];
@@ -215,12 +256,18 @@ contract SampleERC5006 is ERC5006, Ownable {
 
         delete _tokenRecords[recId];
     }
+
+
     function addToAvailableTokens(address lender, uint token_id) internal {
+        //if the lender does not have any copy of a token that is marked for rent then it to the available token list
         if (!(_lenderFrozenBalance[lender][token_id]>0)){
             _lenderAvailableTokens[lender].add(token_id);
         }
     }
+
+
     function deleteFromAvailableTokens(address lender, uint token_id) internal{
+        // if the lender has no more copies of a token that is amrked as rent or onRent then delete that token Id
         if (_lenderFrozenBalance[lender][token_id] == 0){
             _lenderAvailableTokens[lender].remove(token_id);
         }
