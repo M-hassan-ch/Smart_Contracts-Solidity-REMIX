@@ -82,7 +82,7 @@ contract SampleERC5006 is ERC5006, Ownable {
         
         require(startTime < endTime, "Sample5006: Start time should be less than end time");
         require(endTime > block.timestamp , "Sample5006: End time should be greater than current time");
-        // require(startTime >= block.timestamp , "Sample5006: Start time should be greater than current time");
+        require(startTime + 15 >= block.timestamp , "Sample5006: Start time should be greater than current time");
         require(copies > 0, "Sample5006: Copies cannot be zero");
         
         //storing details about the tokken that are marked for rent
@@ -108,8 +108,8 @@ contract SampleERC5006 is ERC5006, Ownable {
         require(msg.value == _tokenRecords[recId].price, "Sample5006: Insufficient price");
         require(msg.sender != _tokenRecords[recId].lender, "Sample5006: Can't buy your own token");
         
-        require(block.timestamp >= _tokenRecords[recId].startTime, "Sample5006: Record's starttime has been expired");
-        require(block.timestamp < _tokenRecords[recId].endTime, "Sample5006: Record's end has been expired");
+        require(block.timestamp >= _tokenRecords[recId].startTime, "Sample5006: Record's starttime has NOT REACHED");
+        require(block.timestamp < _tokenRecords[recId].endTime, "Sample5006: Record's endtime has been expired");
 
         uint userRecordId = _self.createUserRecord(_tokenRecords[recId].lender, msg.sender, _tokenRecords[recId].tokenId, uint64(_tokenRecords[recId].copies), uint64(_tokenRecords[recId].endTime));
                 
