@@ -78,11 +78,11 @@ contract SampleERC5006 is ERC5006, Ownable {
 //  lender will call this function to mark his tokens for rent
     function markForRent(uint token_id, uint copies, uint price, uint startTime, uint endTime) public validTokenOwner(msg.sender, token_id, copies){
         require(price > 0, "Sample5006: Renting price should be be geater than zero");
-        require(startTime > 0 && endTime > 0 , "Sample5006: Timestamp cannot be zero");
+        require(startTime > 0 && endTime > 0 , "Sample5006: Timestamps cannot be zero");
         
         require(startTime < endTime, "Sample5006: Start time should be less than end time");
         require(endTime > block.timestamp , "Sample5006: End time should be greater than current time");
-        require(startTime + 15 >= block.timestamp , "Sample5006: Start time should be greater than current time");
+        // require(startTime + 15 >= block.timestamp , "Sample5006: Start time should be greater than current time");
         require(copies > 0, "Sample5006: Copies cannot be zero");
         
         //storing details about the tokken that are marked for rent
