@@ -5,9 +5,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./ERC5006.sol";
 
 // ---------- MISSING ----------
-//  ---Missing
 //  transfer service fee, rent fee
-//  Utility functions view Functions
 
 contract SampleERC5006 is ERC5006, Ownable {
     
@@ -60,9 +58,18 @@ contract SampleERC5006 is ERC5006, Ownable {
 //  checks whether lender has enough tokens to mark for rent
     modifier validTokenOwner(address lender,uint token_id, uint copies){
         uint actualBalance = balanceOf(lender, token_id);
-        // getting copies of token that lender has already marked for rent
-        uint frozenBalance = _lenderFrozenBalance[lender][token_id];
-        require((actualBalance >= frozenBalance ? actualBalance-frozenBalance : frozenBalance-actualBalance) >= copies, "Sample5006: Lender dont have enough token copies");
+        uint lenderFrozenBalance = _lenderFrozenBalance[lender][token_id];
+
+        if (lenderFrozenBalance == 0){
+            require(copies <= actualBalance, "Sample5006: Lender dont have enough token copies");    
+        }
+        else if (lenderFrozenBalance > 0 && frozenBalanceOf(lender, token_id) == 0){
+            require(copies <= (actualBalance >= lenderFrozenBalance ? actualBalance-lenderFrozenBalance : lenderFrozenBalance-actualBalance), "Sample5006: Lender dont have enough token copies. Remove some marked records and try again");
+        }
+        else if (lenderFrozenBalance > 0 && frozenBalanceOf(lender, token_id) > 0)
+        {
+            require(copies <= actualBalance, "Sample5006: Lender dont have enough token copies. Redeem some record and try again");
+        }
         _;
     }
     
@@ -82,7 +89,7 @@ contract SampleERC5006 is ERC5006, Ownable {
         
         require(startTime < endTime, "Sample5006: Start time should be less than end time");
         require(endTime > block.timestamp , "Sample5006: End time should be greater than current time");
-        // require(startTime + 15 >= block.timestamp , "Sample5006: Start time should be greater than current time");
+        // require(startTime + 120 >= block.timestamp , "Sample5006: Start time should be greater than current time");
         require(copies > 0, "Sample5006: Copies cannot be zero");
         
         //storing details about the tokken that are marked for rent
