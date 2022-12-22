@@ -186,7 +186,6 @@ contract SampleERC5006 is ERC5006, Ownable {
                 // check if the record expires
                 if (record.owner == msg.sender && record.expiry < block.timestamp)
                 {
-
                     // removing recordId from the borrowed recordIds list of Borrower
                     removeBorrowedRecId(_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j], record.user);
 
@@ -196,17 +195,18 @@ contract SampleERC5006 is ERC5006, Ownable {
                     // removing tokenId from the lenders available tokenIds list
                     deleteFromAvailableTokens(record.owner, record.tokenId);
                     
-                    // removing expired recordId from lender's end (Lender OnRent recordIds list)
-                    _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j] = _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].length - 1];
-                    _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].pop();
-
                     // deleting General tokenRecord details
-                    if (_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].length == 0){
-                        removeTokenRecord(_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j]);
+                    if (_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].length == 1){
+                        uint markedRecId = _onRentTokenRecord[_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j]].markedRecId;
+                        removeTokenRecord(markedRecId);
                     }
                     
                     // deleting Onrent General general detail record
                     delete _onRentTokenRecord[_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j]];
+
+                    // removing expired recordId from lender's end (Lender OnRent recordIds list)
+                    _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j] = _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].length - 1];
+                    _lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].pop();
 
                     recordExpired++;
                 }
