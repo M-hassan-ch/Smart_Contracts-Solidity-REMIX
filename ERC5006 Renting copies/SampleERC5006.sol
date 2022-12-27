@@ -145,7 +145,7 @@ contract SampleERC5006 is ERC5006, Ownable {
         _userBorrowedRecordIds[msg.sender].push(_onRentRecId);
         
         //remove recordId from the lender's marked record list (because it is now "actually on rent")
-        removeMarkedRecId(markedRecId, _markedTokenRecord[markedRecId]);
+        // removeMarkedRecId(markedRecId, _markedTokenRecord[markedRecId]);
         
         //Updating general record detail of the lended token
         _markedTokenRecord[markedRecId].copies -= copies;
