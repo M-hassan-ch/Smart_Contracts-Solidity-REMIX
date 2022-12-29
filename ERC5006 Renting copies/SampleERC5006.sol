@@ -61,11 +61,6 @@ contract SampleERC5006 is ERC5006, Ownable {
 //  mapping(user => array containing record ids of borrowed tokens)
     mapping(address => uint[]) _userBorrowedRecordIds;
 
-    // -------------------------- Beta try --------------------------
-
-//  mapping(markedRecId => mapping(borrower => mapping(tokenId => copiesBorrowed)))
-    // mapping(uint => mapping(address => mapping(uint => uint))) _userBorrowedRecordIds;
-
 // -------------------------- Implementation --------------------------
 
     constructor() ERC5006("", 10){
@@ -143,14 +138,9 @@ contract SampleERC5006 is ERC5006, Ownable {
         
         // save the data into the borrower's side (adding record id in the array that contains recordsIds of borrowed token)
         _userBorrowedRecordIds[msg.sender].push(_onRentRecId);
-        
-        //remove recordId from the lender's marked record list (because it is now "actually on rent")
-        // removeMarkedRecId(markedRecId, _markedTokenRecord[markedRecId]);
-        
+
         //Updating general record detail of the lended token
         _markedTokenRecord[markedRecId].copies -= copies;
-        // _markedTokenRecord[markedRecId].rentedTo = msg.sender;
-        // _markedTokenRecord[markedRecId].recordId5006 = userRecordId;
         
         //adding recordId in the lender's actually on rent record list 
         _lenderOnRentRecordIds[_markedTokenRecord[markedRecId].lender][_markedTokenRecord[markedRecId].tokenId].push(_onRentRecId);
@@ -196,11 +186,6 @@ contract SampleERC5006 is ERC5006, Ownable {
                     // removing tokenId from the lenders available tokenIds list
                     deleteFromAvailableTokens(record.owner, record.tokenId);
                     
-                    // deleting General tokenRecord details
-                    // if (_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]].length == 1){
-                    //     uint markedRecId = _onRentTokenRecord[_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j]].markedRecId;
-                    //     removeTokenRecord(markedRecId);
-                    // }
                     
                     // deleting Onrent General general detail record
                     delete _onRentTokenRecord[_lenderOnRentRecordIds[msg.sender][lenderAvailableTokens[i]][j]];
