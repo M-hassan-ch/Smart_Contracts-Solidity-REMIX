@@ -5,9 +5,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "AthleteERC20.sol";
 
 contract Admin is ERC20, Ownable{
-    uint public _maxSupply;
-    uint public _pricePerTokenInFiat;
-    uint public _pricePerTokenInWei;
+    uint public _nxtTokenMaxSupply;
+    uint public _nxtTokenSuppliedAmount;
+    // uint public _pricePerNxtTokenInFiat;
+    uint public _pricePerNxtToken;
 
 // -------------------------- Managing Athlete --------------------------
 
@@ -34,47 +35,71 @@ contract Admin is ERC20, Ownable{
     mapping(uint => TokenDrop[]) public _athleteTokenDrops;
     
     AthleteERC20 _athleteERC20Contract;
+    Admin _self;
 
-    constructor(uint maxSupply, uint initialMint, uint priceInwei, uint priceInFiat) ERC20("NextUp", "NXT") {
-        require(initialMint > 0, "Admin: Initial token mint cant be zero");
-        require(initialMint <= maxSupply, "Admin: Initial mint should be less than maximum supply");
-        // _contract = Admin(address(this));
-        _maxSupply = maxSupply;
-        _pricePerTokenInWei = priceInwei;
-        _pricePerTokenInFiat = priceInFiat;
-        _mint(owner(), initialMint);
+    constructor(uint maxSupply, uint priceInwei) ERC20("NextUp", "NXT") {
+        require(maxSupply > 0, "Admin: Max supply should be greater than zero");
+        require(priceInwei > 0, "Admin: Price of token should be greater than zero");
+        
+        _self = Admin(address(this));
+
+        _nxtTokenMaxSupply = maxSupply;
+        _pricePerNxtToken = priceInwei;
+
+        // _pricePerNxtTokenInFiat = priceInFiat;
+        // _mint(owner(), initialMint);
         // approve(address(this), initialMint);
     }
 
-    function mintTokens(uint amount) public onlyOwner{
-        require(amount>0, "Admin: Mint amount cant be zero");
-        require(totalSupply() < _maxSupply , "Admin: Max Supply limit reached");
-        require(totalSupply() + amount <= _maxSupply , "Admin: Can't mint tokens more than max supply");
-        _mint(owner(), amount);
-        approve(address(this), amount);
+    function increaseNxtTokenMaxSupply(uint updatedSupply) public onlyOwner{
+        require(updatedSupply > 0, "Admin: Updated supply should be greater than zero");
+        _nxtTokenMaxSupply += updatedSupply;
     }
 
-    function increaseMaxSupply(uint amount) public onlyOwner{
-        require(amount>0, "Admin: Max mint amount cant be zero");
-        _maxSupply += amount;
+    function updateNxtTokenPrice(uint updatedPrice) public onlyOwner{
+        _pricePerNxtToken = updatedPrice;
     }
+
+    // -------------------- View Function ------------------------
+
+    function getNxtTokenMaxSupply() public view onlyOwner returns(uint){
+        return _nxtTokenMaxSupply;
+    }
+
+    function getNxtTokenPrice() public view onlyOwner returns(uint){
+        return _pricePerNxtToken;
+    }
+
+    // function mintTokens(uint amount) public onlyOwner{
+    //     require(amount>0, "Admin: Mint amount cant be zero");
+    //     require(totalSupply() < _nxtTokenMaxSupply , "Admin: Max Supply limit reached");
+    //     require(totalSupply() + amount <= _nxtTokenMaxSupply , "Admin: Can't mint tokens more than max supply");
+    //     _mint(owner(), amount);
+    //     approve(address(this), amount);
+    // }
+
+// -------------------------- User related functions --------------------------
 
 //  In case, if customer is buying NextUp tokens in WEI
-    function buyTokenInWei(uint amountToBuy, address addressTo) public payable
+    function buyTokenInWei(uint amountToBuy) public payable
     {
-        require(msg.value == _pricePerTokenInWei * amountToBuy, "UtilityToken: Insufficient amount to buy tokens");
-        require(amountToBuy <= balanceOf(owner()), "Admin: Insufficient owner's balance");
-        transferFrom(owner(), addressTo, amountToBuy);
+        require(msg.sender != address(0), "Admin: Caller is null address");
+        require(msg.value == (_pricePerNxtToken * amountToBuy), "UtilityToken: Insufficient amount to buy tokens");
+        require(_nxtTokenSuppliedAmount < _nxtTokenMaxSupply, "Admin: Max supply limit reached");
+        require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Max supply limit reached");
+
+        _nxtTokenSuppliedAmount += amountToBuy;
+        _mint(msg.sender, amountToBuy);
         // approve(address(this), amountToBuy);
     }
 
 //  In case, if customer is buying NextUp tokens with USD (Fiat money)
-    function buyTokenInFiat(uint amountToBuy, address addressTo) public onlyOwner
-    {
-        require(amountToBuy <= balanceOf(owner()), "Admin: Insufficient owner's balance");
-        transferFrom(owner(), addressTo, amountToBuy);
-        // approve(address(this), amountToBuy);
-    }
+    // function buyTokenInFiat(uint amountToBuy, address addressTo) public onlyOwner
+    // {
+    //     require(amountToBuy <= balanceOf(owner()), "Admin: Insufficient owner's balance");
+    //     transferFrom(owner(), addressTo, amountToBuy);
+    //     // approve(address(this), amountToBuy);
+    // }
 
 // -------------------------- Athlete related functions --------------------------
 
@@ -170,5 +195,5 @@ contract Admin is ERC20, Ownable{
 
     // apply token drops
 
-
+//
 }
