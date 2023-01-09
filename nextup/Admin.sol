@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "AthleteERC20.sol";
+import "NextUpERC20.sol";
 
-contract Admin is ERC20, Ownable{
-    uint public _nxtTokenMaxSupply;
-    uint public _nxtTokenSuppliedAmount;
-    // uint public _pricePerNxtTokenInFiat;
-    uint public _pricePerNxtToken;
-
+contract Admin is Ownable{
 // -------------------------- Managing Athlete --------------------------
-
     struct TokenDrop{
         uint timestamp;
         uint supply;
@@ -27,31 +21,43 @@ contract Admin is ERC20, Ownable{
         uint suppliedAmount;
     }
 
+    uint public _nxtTokenMaxSupply;
+    uint public _nxtTokenSuppliedAmount;
+    // uint public _pricePerNxtTokenInFiat;
+    uint public _pricePerNxtToken;
+
     uint _athleteId;
+
+    // AthleteERC20 _athleteERC20Contract;
+    Admin _self;
+    NextUpERC20 _nextUpERC20Contract;
 
 //  mapping(Athelete => Athlete ERC20 token details)
     mapping (uint => AthleteERC20Details) public _athleteERC20Detail;
 //  mapping(Athelete => Athlete token drops)
     mapping(uint => TokenDrop[]) public _athleteTokenDrops;
-    
-    AthleteERC20 _athleteERC20Contract;
-    Admin _self;
 
-    constructor(string memory nxtTokenName, string memory nxtTokenSymbol, uint maxSupply, uint priceInwei) ERC20(nxtTokenName, nxtTokenSymbol) {
+    constructor(uint maxSupply, uint priceInwei, address nextUpERC20Contract){
         require(maxSupply > 0, "Admin: Max supply should be greater than zero");
         require(priceInwei > 0, "Admin: Price of token should be greater than zero");
+        require(nextUpERC20Contract != address(0), "Admin: Next-Up contract address is null");
         
         _self = Admin(address(this));
+        _nextUpERC20Contract = NextUpERC20(nextUpERC20Contract);
 
         _nxtTokenMaxSupply = maxSupply;
         _pricePerNxtToken = priceInwei;
 
         // _pricePerNxtTokenInFiat = priceInFiat;
-        // _mint(owner(), initialMint);
         // approve(address(this), initialMint);
     }
 
     // -------------------------- NextUp token related functions --------------------------
+
+    function setNextUpERC20Contract(address nextUpERC20Contract) public onlyOwner{
+        require(nextUpERC20Contract != address(0), "Admin: Next-Up contract address is null");
+        _nextUpERC20Contract = NextUpERC20(nextUpERC20Contract);
+    }
 
     function increaseNxtTokenMaxSupply(uint updatedSupply) public onlyOwner{
         require(updatedSupply > 0, "Admin: Updated supply should be greater than zero");
@@ -86,10 +92,10 @@ contract Admin is ERC20, Ownable{
         require(msg.sender != address(0), "Admin: Caller is null address");
         require(msg.value == (_pricePerNxtToken * amountToBuy), "UtilityToken: Insufficient amount to buy tokens");
         require(_nxtTokenSuppliedAmount < _nxtTokenMaxSupply, "Admin: Max supply limit reached");
-        require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Max supply limit reached");
+        require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
 
         _nxtTokenSuppliedAmount += amountToBuy;
-        _mint(msg.sender, amountToBuy);
+        _nextUpERC20Contract.mint(msg.sender, amountToBuy);
         // approve(address(this), amountToBuy);
     }
 
@@ -121,7 +127,7 @@ contract Admin is ERC20, Ownable{
     function createAthlete(AthleteERC20Details memory athleteDetails, TokenDrop[] memory tokenDrops)  public onlyOwner returns(uint){
         require(athleteDetails.contractAddress != address(0), "Admin: Athlete ERC20 contract cant be null");
         require(athleteDetails.maxSupply > 0, "Admin: Total supply should be greater than zero");
-        require(validateDropDates(tokenDrops), "Admin: Invalid token drops");
+        require(validateDropDates(tokenDrops), "Admin: Got an invalid token drop");
         
         _athleteERC20Detail[_athleteId] =  athleteDetails;
         
