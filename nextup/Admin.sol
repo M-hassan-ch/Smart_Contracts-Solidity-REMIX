@@ -10,7 +10,6 @@ contract Admin is Ownable{
         uint timestamp;
         uint supply;
         uint price;
-        bool isApplied;
     }
 
     struct AthleteERC20Details{
@@ -19,6 +18,8 @@ contract Admin is Ownable{
         bool isDisabled;
         uint maxSupply;
         uint suppliedAmount;
+        uint availableForSale;
+        bool countMaxSupplyAsAvailableTokens;
     }
 
     uint public _nxtTokenMaxSupply;
@@ -76,14 +77,6 @@ contract Admin is Ownable{
         return _pricePerNxtToken;
     }
 
-    // function mintTokens(uint amount) public onlyOwner{
-    //     require(amount>0, "Admin: Mint amount cant be zero");
-    //     require(totalSupply() < _nxtTokenMaxSupply , "Admin: Max Supply limit reached");
-    //     require(totalSupply() + amount <= _nxtTokenMaxSupply , "Admin: Can't mint tokens more than max supply");
-    //     _mint(owner(), amount);
-    //     approve(address(this), amount);
-    // }
-
 // -------------------------- User related functions --------------------------
 
 //  In case, if customer is buying NextUp tokens in WEI
@@ -129,15 +122,50 @@ contract Admin is Ownable{
         require(athleteDetails.maxSupply > 0, "Admin: Total supply should be greater than zero");
         require(validateDropDates(tokenDrops), "Admin: Got an invalid token drop");
         
+        _athleteId++;
         _athleteERC20Detail[_athleteId] =  athleteDetails;
-        
+
+        if (tokenDrops.length==0){
+            // _athleteERC20Detail[_athleteId].availableForSale = _athleteERC20Detail[_athleteId].maxSupply;
+            _athleteERC20Detail[_athleteId].countMaxSupplyAsAvailableTokens =true;
+        }
+        else{
+            for (uint i=0; i<tokenDrops.length; i++){
+                _athleteTokenDrops[_athleteId].push(tokenDrops[i]);
+            }
+            // availableForSale token will set when we run applyDrop() of athlete
+        }
+
+        return _athleteId;
+    }
+
+    function getAthleteAvailableForSaleTokens(uint athleteId) public isValidAthlete(athleteId) returns(uint){
+        if (_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
+            return (_athleteERC20Detail[athleteId].maxSupply - _athleteERC20Detail[athleteId].suppliedAmount);
+        }
+        else{
+            return _athleteERC20Detail[athleteId].availableForSale;
+        }
+    }
+
+    function addAthleteDrops(uint athleteId, TokenDrop[] memory tokenDrops) public onlyOwner isValidAthlete(athleteId){
+        require(validateDropDates(tokenDrops), "Admin: Got an invalid token drop");
+
+        _athleteERC20Detail[_athleteId].countMaxSupplyAsAvailableTokens =false;
+
         for (uint i=0; i<tokenDrops.length; i++){
             _athleteTokenDrops[_athleteId].push(tokenDrops[i]);
         }
+    }
 
-        _athleteId++;
+    function applyAthleteDrop(uint athleteId) public isValidAthlete(athleteId){
+        require(_athleteTokenDrops[athleteId].length > 0, "Admin: Athlete token don't have drops");
 
-        return _athleteId-1;
+        for (uint i=0; i<_athleteTokenDrops[athleteId].length; i++){
+            if (block.timestamp >= _athleteTokenDrops[athleteId][i].timestamp){
+                _athleteERC20Detail[athleteId].availableForSale += _athleteTokenDrops[athleteId][i].supply;
+            }
+        }
     }
 
     //  Internal function to check whether invalid data exists in the token drops.
@@ -147,7 +175,7 @@ contract Admin is Ownable{
 
         for (uint i=0; i<drops.length; i++)
         {
-            if ((drops[i].timestamp < currentTime) || drops[i].price<=0 || drops[i].supply<=0 || drops[i].isApplied==true){
+            if ((drops[i].timestamp < currentTime) || drops[i].price<=0 || drops[i].supply<=0){
                 return false;
             }
         }
