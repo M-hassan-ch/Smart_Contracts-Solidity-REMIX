@@ -5,8 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AthleteERC20 is ERC20, Ownable{
 
-    constructor(string memory tokenName, string memory symbol, uint totalSupply) ERC20(tokenName, symbol) {    
-        require(totalSupply>0, "AthleteERC20: Total Supply cant be zero");
+    constructor(string memory tokenName, string memory symbol) ERC20(tokenName, symbol) {    
     }
 
     function mintToken(uint amount, address addressTo) public onlyOwner{

@@ -29,7 +29,7 @@ contract Admin is Ownable{
 
     uint _athleteId;
 
-    // AthleteERC20 _athleteERC20Contract;
+    AthleteERC20 _athleteERC20Contract;
     Admin _self;
     NextUpERC20 _nextUpERC20Contract;
 
@@ -69,11 +69,11 @@ contract Admin is Ownable{
         _pricePerNxtToken = updatedPrice;
     }
 
-    function getNxtTokenMaxSupply() public view onlyOwner returns(uint){
+    function getNxtTokenMaxSupply() public view  returns(uint){
         return _nxtTokenMaxSupply;
     }
 
-    function getNxtTokenPrice() public view onlyOwner returns(uint){
+    function getNxtTokenPrice() public view returns(uint){
         return _pricePerNxtToken;
     }
 
@@ -83,7 +83,7 @@ contract Admin is Ownable{
     function buyNxtTokenInWei(uint amountToBuy) public payable
     {
         require(msg.sender != address(0), "Admin: Caller is null address");
-        require(msg.value == (_pricePerNxtToken * amountToBuy), "UtilityToken: Insufficient amount to buy tokens");
+        require(msg.value == (_pricePerNxtToken * amountToBuy), "UtilityToken: Insufficient balance to buy NXT tokens");
         require(_nxtTokenSuppliedAmount < _nxtTokenMaxSupply, "Admin: Max supply limit reached");
         require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
 
@@ -139,7 +139,7 @@ contract Admin is Ownable{
         return _athleteId;
     }
 
-    function getAthleteAvailableForSaleTokens(uint athleteId) public isValidAthlete(athleteId) returns(uint){
+    function getAthleteAvailableForSaleTokens(uint athleteId) public view isValidAthlete(athleteId) returns(uint){
         if (_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
             return (_athleteERC20Detail[athleteId].maxSupply - _athleteERC20Detail[athleteId].suppliedAmount);
         }
@@ -167,6 +167,26 @@ contract Admin is Ownable{
             }
         }
     }
+
+    function buyAthleteTokens(uint athleteId, uint amountToBuy) public isValidAthlete(athleteId) isAthleteNotDisabled(athleteId) {
+        require(msg.sender != address(0), "Admin: Caller is null address");
+        require(getUserNxtTokenBalance() == (_athleteERC20Detail[athleteId].pricePerToken * amountToBuy), "UtilityToken: Insufficient NXT Tokens to buy athlete tokens");
+        require(_athleteERC20Detail[athleteId].suppliedAmount < _athleteERC20Detail[athleteId].maxSupply, "Admin: Max supply limit reached");
+        require(amountToBuy <= getAthleteAvailableForSaleTokens(athleteId), "Admin: Athlete Dont have enough available tokens");
+        // require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
+
+
+        _athleteERC20Detail[athleteId].suppliedAmount += amountToBuy;
+
+        if (!_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
+            _athleteERC20Detail[athleteId].availableForSale -= amountToBuy;
+        }
+    }
+    
+    function getUserNxtTokenBalance() public view returns(uint){
+        return _nextUpERC20Contract.balanceOf(msg.sender);
+    }
+
 
     //  Internal function to check whether invalid data exists in the token drops.
     function validateDropDates(TokenDrop[] memory drops) view internal onlyOwner returns(bool){
@@ -208,7 +228,7 @@ contract Admin is Ownable{
     function getValidTokenDrop(uint athleteId) public view onlyOwner isValidAthlete(athleteId) returns(TokenDrop memory){
         for (uint i=0; i<_athleteTokenDrops[athleteId].length;i++){    
             
-            if (_athleteTokenDrops[athleteId][i].timestamp >= block.timestamp && !_athleteTokenDrops[athleteId][i].isApplied){
+            if (_athleteTokenDrops[athleteId][i].timestamp >= block.timestamp){
                 
                 // _athleteTokenDrops[athleteId][i].isApplied = true;
                 
@@ -217,7 +237,7 @@ contract Admin is Ownable{
 
         }
 
-        return TokenDrop(0,0,0, true);
+        return TokenDrop(0,0,0);
 
     }
 
