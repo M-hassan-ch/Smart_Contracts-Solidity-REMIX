@@ -22,10 +22,10 @@ contract Admin is Ownable{
         bool countMaxSupplyAsAvailableTokens;
     }
 
-    uint public _nxtTokenMaxSupply;
-    uint public _nxtTokenSuppliedAmount;
+    uint _nxtTokenMaxSupply;
+    uint _nxtTokenSuppliedAmount;
     // uint public _pricePerNxtTokenInFiat;
-    uint public _pricePerNxtToken;
+    uint _pricePerNxtToken;
 
     uint _athleteId;
 
@@ -76,6 +76,10 @@ contract Admin is Ownable{
     function getNxtTokenPrice() public view returns(uint){
         return _pricePerNxtToken;
     }
+    
+    function getNxtTokenSupppliedAmount() public view returns(uint){
+        return _nxtTokenSuppliedAmount;
+    }
 
 // -------------------------- User related functions --------------------------
 
@@ -83,7 +87,7 @@ contract Admin is Ownable{
     function buyNxtTokenInWei(uint amountToBuy) public payable
     {
         require(msg.sender != address(0), "Admin: Caller is null address");
-        require(msg.value == (_pricePerNxtToken * amountToBuy), "UtilityToken: Insufficient balance to buy NXT tokens");
+        require(msg.value == (_pricePerNxtToken * amountToBuy), "Admin: Insufficient balance to buy NXT tokens");
         require(_nxtTokenSuppliedAmount < _nxtTokenMaxSupply, "Admin: Max supply limit reached");
         require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
 
@@ -117,11 +121,24 @@ contract Admin is Ownable{
 //  Before calling this function admin has already deployed AthleteERC20 contract
 //  ERC20 token name and symbol already had given during the deployement
 //  Creating an athlete with drops(sorted array). This function returns id of created athlete
-    function createAthlete(AthleteERC20Details memory athleteDetails, TokenDrop[] memory tokenDrops)  public onlyOwner returns(uint){
+
+    function isValidAthleteDetails(AthleteERC20Details memory athleteDetails) internal pure returns(bool){
+        require(athleteDetails.pricePerToken > 0, "Admin: Athlete ERC20 token price should be greater than zero");
         require(athleteDetails.contractAddress != address(0), "Admin: Athlete ERC20 contract cant be null");
-        require(athleteDetails.maxSupply > 0, "Admin: Total supply should be greater than zero");
-        require(validateDropDates(tokenDrops), "Admin: Got an invalid token drop");
+        require(athleteDetails.isDisabled == false, "Admin: Got disabled athlete object");
+        require(athleteDetails.maxSupply > 0, "Admin: Athlete ERC20 max-supply token should be greater than zero");
+        require(athleteDetails.suppliedAmount == 0, "Admin: Athlete ERC20 supplied token should be zero");
+        require(athleteDetails.availableForSale == 0, "Admin: Athlete ERC20 available token should be zero");
+        require(athleteDetails.countMaxSupplyAsAvailableTokens == false, "Admin: Flag that indicate available supply of athlete token should be false");
+
+        return true;
+    }
+
+    function createAthlete(AthleteERC20Details memory athleteDetails, TokenDrop[] memory tokenDrops)  public onlyOwner returns(uint){
+        require(isValidTokenDrop(tokenDrops), "Admin: Got an invalid token drop");
         
+        isValidAthleteDetails(athleteDetails);
+
         _athleteId++;
         _athleteERC20Detail[_athleteId] =  athleteDetails;
 
@@ -149,7 +166,7 @@ contract Admin is Ownable{
     }
 
     function addAthleteDrops(uint athleteId, TokenDrop[] memory tokenDrops) public onlyOwner isValidAthlete(athleteId){
-        require(validateDropDates(tokenDrops), "Admin: Got an invalid token drop");
+        require(isValidTokenDrop(tokenDrops), "Admin: Got an invalid token drop");
 
         _athleteERC20Detail[_athleteId].countMaxSupplyAsAvailableTokens =false;
 
@@ -158,21 +175,32 @@ contract Admin is Ownable{
         }
     }
 
-    function applyAthleteDrop(uint athleteId) public isValidAthlete(athleteId){
+    function applyAthleteDrop(uint athleteId) public isValidAthlete(athleteId) returns (bool, TokenDrop memory){
         require(_athleteTokenDrops[athleteId].length > 0, "Admin: Athlete token don't have drops");
+        TokenDrop memory drop;
 
         for (uint i=0; i<_athleteTokenDrops[athleteId].length; i++){
             if (block.timestamp >= _athleteTokenDrops[athleteId][i].timestamp){
                 _athleteERC20Detail[athleteId].availableForSale += _athleteTokenDrops[athleteId][i].supply;
+                drop = _athleteTokenDrops[athleteId][i];
+                deleteTokenDrop(athleteId, i);
+                return (true, drop);
             }
         }
+
+        return (false, drop);
+    }
+
+    function deleteTokenDrop(uint athleteId, uint index) internal{
+       _athleteTokenDrops[athleteId][index] = _athleteTokenDrops[athleteId][_athleteTokenDrops[athleteId].length -1];
+       _athleteTokenDrops[athleteId].pop();
     }
 
     function buyAthleteTokens(uint athleteId, uint amountToBuy) public isValidAthlete(athleteId) isAthleteNotDisabled(athleteId) {
         require(msg.sender != address(0), "Admin: Caller is null address");
-        require(getUserNxtTokenBalance() == (_athleteERC20Detail[athleteId].pricePerToken * amountToBuy), "UtilityToken: Insufficient NXT Tokens to buy athlete tokens");
         require(_athleteERC20Detail[athleteId].suppliedAmount < _athleteERC20Detail[athleteId].maxSupply, "Admin: Max supply limit reached");
         require(amountToBuy <= getAthleteAvailableForSaleTokens(athleteId), "Admin: Athlete Dont have enough available tokens");
+        require(getUserNxtTokenBalance() == (_athleteERC20Detail[athleteId].pricePerToken * amountToBuy), "Admin: Insufficient NXT Tokens to buy athlete tokens");
         // require(amountToBuy <= (_nxtTokenMaxSupply - _nxtTokenSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
 
 
@@ -189,7 +217,7 @@ contract Admin is Ownable{
 
 
     //  Internal function to check whether invalid data exists in the token drops.
-    function validateDropDates(TokenDrop[] memory drops) view internal onlyOwner returns(bool){
+    function isValidTokenDrop(TokenDrop[] memory drops) view internal onlyOwner returns(bool){
 
         uint currentTime = block.timestamp;
 
