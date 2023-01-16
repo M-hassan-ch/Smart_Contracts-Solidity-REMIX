@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NextUpERC20 is ERC20, ERC20Burnable, Pausable, Ownable{
+contract NextUp is ERC20, ERC20Burnable, Pausable, Ownable{
     address _adminContract;
 
     constructor(string memory tokenName, string memory symbol) ERC20(tokenName, symbol) {    
@@ -13,17 +13,17 @@ contract NextUpERC20 is ERC20, ERC20Burnable, Pausable, Ownable{
     }
 
     modifier onlyAllowed(address caller){
-        require(caller == _adminContract || caller == owner(), "NextUpERC20: Caller is not authorized");
+        require(caller == _adminContract || caller == owner(), "NextUp: Caller is not authorized");
         _;
     }
 
     modifier isValidAdminContract(){
-        require(_adminContract != address(0), "NextUpERC20: Admin contract address is null");
+        require(_adminContract != address(0), "NextUp: Admin contract address is null");
         _;
     }
 
     function setAdminContract(address adminContract) public onlyOwner{
-        require(adminContract != address(0), "NextUpERC20: Admin contract's address argument is null");
+        require(adminContract != address(0), "NextUp: Admin contract's address argument is null");
         _adminContract = adminContract;
     }
 
