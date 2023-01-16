@@ -71,16 +71,6 @@ contract Admin is Ownable, Pausable{
         _nextUpContract = NextUp(nextUpERC20Contract);
     }
 
-    function increaseNxtTokenMaxSupply(uint updatedSupply) public onlyOwner{
-        require(updatedSupply > 0, "Admin: Updated supply should be greater than zero");
-        _nxtMaxSupply += updatedSupply;
-    }
-
-    function updateNxtTokenPrice(uint updatedPrice) public onlyOwner{
-        _nxtPrice = updatedPrice;
-    }
-
-
 // -------------------------- User related functions --------------------------
 
 //  In case, if customer is buying NextUp tokens in WEI
@@ -107,13 +97,9 @@ contract Admin is Ownable, Pausable{
 // -------------------------- Athlete related functions --------------------------
 
 //  Delete an athlete profile is missing
-
-
 //  Before calling this function admin has already deployed AthleteERC20 contract
 //  ERC20 token name and symbol already had given during the deployement
 //  Creating an athlete with drops(sorted array). This function returns id of created athlete
-
-
     function createAthlete(AthleteERC20Details memory athleteDetails, Drop[] memory tokenDrops)  public onlyOwner returns(uint){
         require(isValidDrop(tokenDrops), "Admin: Got an invalid token drop");
         require(isValidAthleteDetails(athleteDetails), "Admin: Inavalid athlete details");
@@ -133,6 +119,21 @@ contract Admin is Ownable, Pausable{
         }
 
         return _athleteId;
+    }
+
+    function buyAthleteTokens(uint athleteId, uint amountToBuy) public isValidAthlete(athleteId) isAthleteNotDisabled(athleteId) {
+        require(msg.sender != address(0), "Admin: Caller is null address");
+        require(_athleteERC20Detail[athleteId].suppliedAmount < _athleteERC20Detail[athleteId].maxSupply, "Admin: Max supply limit reached");
+        require(amountToBuy <= getAthleteAvailableForSaleTokens(athleteId), "Admin: Athlete Dont have enough available tokens");
+        require(getUserNxtBalance() == (_athleteERC20Detail[athleteId].price * amountToBuy), "Admin: Insufficient NXT Tokens to buy athlete tokens");
+        // require(amountToBuy <= (_nxtMaxSupply - _nxtSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
+
+
+        _athleteERC20Detail[athleteId].suppliedAmount += amountToBuy;
+
+        if (!_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
+            _athleteERC20Detail[athleteId].availableForSale -= amountToBuy;
+        }
     }
 
     function addAthleteDrops(uint athleteId, Drop[] memory tokenDrops) public onlyOwner isValidAthlete(athleteId){
@@ -162,21 +163,6 @@ contract Admin is Ownable, Pausable{
     }
 
 
-    function buyAthleteTokens(uint athleteId, uint amountToBuy) public isValidAthlete(athleteId) isAthleteNotDisabled(athleteId) {
-        require(msg.sender != address(0), "Admin: Caller is null address");
-        require(_athleteERC20Detail[athleteId].suppliedAmount < _athleteERC20Detail[athleteId].maxSupply, "Admin: Max supply limit reached");
-        require(amountToBuy <= getAthleteAvailableForSaleTokens(athleteId), "Admin: Athlete Dont have enough available tokens");
-        require(getUserNxtBalance() == (_athleteERC20Detail[athleteId].price * amountToBuy), "Admin: Insufficient NXT Tokens to buy athlete tokens");
-        // require(amountToBuy <= (_nxtMaxSupply - _nxtSuppliedAmount), "Admin: Admin dont have enough nextUp tokens");
-
-
-        _athleteERC20Detail[athleteId].suppliedAmount += amountToBuy;
-
-        if (!_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
-            _athleteERC20Detail[athleteId].availableForSale -= amountToBuy;
-        }
-    }
-
 //  Admin call this function to update the price(In NXT tokens) of Athlete's ERC20 Token
     function updateAthleteTokenPrice(uint athleteId, uint price) public onlyOwner isValidAthlete(athleteId){
         _athleteERC20Detail[athleteId].price = price;
@@ -192,6 +178,15 @@ contract Admin is Ownable, Pausable{
         _athleteERC20Detail[athleteId].isDisabled = status;
     }
 
+    function increaseNxtTokenMaxSupply(uint updatedSupply) public onlyOwner{
+        require(updatedSupply > 0, "Admin: Updated supply should be greater than zero");
+        _nxtMaxSupply += updatedSupply;
+    }
+
+    function updateNxtTokenPrice(uint updatedPrice) public onlyOwner{
+        _nxtPrice = updatedPrice;
+    }
+
     function pause() public onlyOwner {
         _pause();
     }
@@ -200,7 +195,7 @@ contract Admin is Ownable, Pausable{
         _unpause();
     }
 
-//          --------------------- View Functions -----------------------
+//    --------------------------- View Functions ---------------------------
     
     function getAthleteAvailableForSaleTokens(uint athleteId) public view isValidAthlete(athleteId) returns(uint){
         if (_athleteERC20Detail[athleteId].countMaxSupplyAsAvailableTokens){
@@ -220,7 +215,7 @@ contract Admin is Ownable, Pausable{
         return _nextUpContract.balanceOf(msg.sender);
     }
 
-//          --------------------- Internal Functions -----------------------
+//   --------------------------- Internal Functions ---------------------------
 
     function isValidDrop(Drop[] memory drops) view internal onlyOwner returns(bool){
 
